@@ -1,0 +1,26 @@
+{
+  "name": "taxlens",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "predev": "node scripts/copy-pdfjs-assets.mjs",
+    "dev": "astro dev",
+    "prebuild": "node scripts/copy-pdfjs-assets.mjs",
+    "build": "astro check && astro build",
+    "preview": "astro preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@astrojs/preact": "^6.1.1",
+    "astro": "^7.4.4",
+    "pdfjs-dist": "^6.4.299",
+    "preact": "^11.1.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.12",
+    "@types/node": "^26.6.6",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.5"
+  }
+}

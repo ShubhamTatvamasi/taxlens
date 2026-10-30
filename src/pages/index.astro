@@ -1,0 +1,11 @@
+---
+import Layout from '../layouts/Layout.astro';
+import App from '../components/App';
+---
+
+<Layout title="TaxLens — income & advance tax from your bank statement">
+  <App client:only="preact" />
+  <noscript>
+    <div class="container" style="padding:40px 0">TaxLens runs entirely in your browser and needs JavaScript.</div>
+  </noscript>
+</Layout>

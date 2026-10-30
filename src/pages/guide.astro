@@ -1,0 +1,163 @@
+---
+import Layout from '../layouts/Layout.astro';
+import {
+  ADVANCE_TAX,
+  DEDUCTION_LIMITS,
+  LTCG_112A_EXEMPTION,
+  NEW_REGIME_SLABS,
+  OLD_REGIME_SLABS,
+  REBATE,
+  RETURN_DUE,
+  SECTION_MAP,
+  SPECIAL_RATES,
+  STANDARD_DEDUCTION,
+  SURCHARGE,
+  TAX_YEAR,
+} from '../lib/tax/rules';
+
+const fmt = (n: number) => '₹' + n.toLocaleString('en-IN');
+const pct = (n: number) => `${+(n * 100).toFixed(1)}%`;
+const slabRows = (slabs: readonly (readonly [number, number])[]) => {
+  let prev = 0;
+  return slabs.map(([upTo, rate]) => {
+    const row = { range: upTo === Infinity ? `Above ${fmt(prev)}` : `${fmt(prev)} – ${fmt(upTo)}`, rate: pct(rate) };
+    prev = upTo;
+    return row;
+  });
+};
+const d = (iso: string) => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+---
+
+<Layout title="Tax guide — TY 2026-27 · TaxLens" active="guide">
+  <main class="container">
+    <article class="prose">
+      <span class="badge accent">Tax year {TAX_YEAR.label} · 1 Apr 2026 – 31 Mar 2027</span>
+      <h1 style="font-size:34px;margin-top:12px">Income tax for individuals & HUFs</h1>
+      <p>
+        From 1 April 2026 the <b>Income-tax Act, 2025</b> replaces the 1961 Act. “Previous year” and “assessment year” become a single
+        <b>tax year</b>. Budget 2026 left slab rates unchanged, so the Finance Act 2025 rates continue. Section numbers below use the familiar 1961
+        names; common mappings: {Object.entries(SECTION_MAP).map(([o, n], i) => <>{i ? ', ' : ''}{o} → {n}</>)}.
+      </p>
+      <nav class="toc">
+        {['Regimes', 'Slabs', 'Rebate', 'Surcharge', 'Special rates', 'Deductions', 'Individual vs HUF', 'Advance tax', 'Due dates', 'Edge cases'].map((t) => (
+          <a class="badge" href={`#${t.toLowerCase().replace(/[^a-z]+/g, '-')}`}>{t}</a>
+        ))}
+      </nav>
+
+      <h2 id="regimes">Choosing a regime</h2>
+      <p>
+        The <b>new regime</b> is the default for individuals and HUFs. It has lower slab rates but allows almost no deductions — only the standard
+        deduction ({fmt(STANDARD_DEDUCTION.new)} for salary/pension), employer NPS (80CCD(2)), Agniveer (80CCH) and family-pension deduction.
+        The <b>old regime</b> keeps 80C, 80D, HRA, home-loan interest and other deductions.
+      </p>
+      <ul>
+        <li><b>No business income:</b> choose the regime every year in the return itself, by the due date.</li>
+        <li><b>With business/profession income:</b> opt out of the new regime by filing Form 10-IEA before the due date. You can return to the new regime, but switch back to old only once in a lifetime.</li>
+      </ul>
+
+      <h2 id="slabs">Slab rates</h2>
+      <div class="grid grid-2">
+        <div>
+          <h3>New regime (all ages, individual & HUF)</h3>
+          <table><thead><tr><th>Income</th><th class="r">Rate</th></tr></thead><tbody>
+            {slabRows(NEW_REGIME_SLABS).map((r) => <tr><td>{r.range}</td><td class="r">{r.rate}</td></tr>)}
+          </tbody></table>
+        </div>
+        <div>
+          <h3>Old regime</h3>
+          <table><thead><tr><th>Income</th><th class="r">Below 60 / HUF</th></tr></thead><tbody>
+            {slabRows(OLD_REGIME_SLABS.below60).map((r) => <tr><td>{r.range}</td><td class="r">{r.rate}</td></tr>)}
+          </tbody></table>
+          <p class="small">Resident seniors (60–79): nil up to ₹3,00,000. Resident super-seniors (80+): nil up to ₹5,00,000. Higher limits don’t apply to non-residents or HUFs.</p>
+        </div>
+      </div>
+
+      <h2 id="rebate">Rebate u/s 87A (Sec 156)</h2>
+      <ul>
+        <li><b>New regime:</b> resident individuals with total income up to {fmt(REBATE.new.incomeLimit)} get a rebate of up to {fmt(REBATE.new.max)} — effectively zero tax (₹12.75 lakh for salaried after standard deduction). Not available against tax on special-rate income such as STCG u/s 111A or LTCG u/s 112A.</li>
+        <li><b>Marginal relief:</b> just above {fmt(REBATE.new.incomeLimit)}, tax can’t exceed the income above that limit (relevant up to about ₹12.75 lakh).</li>
+        <li><b>Old regime:</b> up to {fmt(REBATE.old.max)} if total income ≤ {fmt(REBATE.old.incomeLimit)}.</li>
+        <li><b>HUFs and non-residents get no rebate.</b> An HUF with ₹7 lakh income pays tax in both regimes.</li>
+      </ul>
+
+      <h2 id="surcharge">Surcharge & cess</h2>
+      <table><thead><tr><th>Total income above</th><th class="r">Old regime</th><th class="r">New regime</th></tr></thead><tbody>
+        {SURCHARGE.map((s) => <tr><td>{fmt(s.above)}</td><td class="r">{pct(s.rate)}</td><td class="r">{pct(Math.min(s.rate, 0.25))}</td></tr>)}
+      </tbody></table>
+      <p>Surcharge on STCG 111A, LTCG 112/112A and dividends is capped at 15%. Marginal relief ensures tax + surcharge never rises by more than the income above each threshold. Health & education cess of 4% applies on tax plus surcharge.</p>
+
+      <h2 id="special-rates">Special-rate income</h2>
+      <table><thead><tr><th>Income</th><th class="r">Rate</th><th>Notes</th></tr></thead><tbody>
+        <tr><td>STCG — listed equity, equity MF (111A)</td><td class="r">{pct(SPECIAL_RATES.stcg111A)}</td><td>Held ≤ 12 months, STT paid</td></tr>
+        <tr><td>LTCG — listed equity, equity MF (112A)</td><td class="r">{pct(SPECIAL_RATES.ltcg112A)}</td><td>Above {fmt(LTCG_112A_EXEMPTION)} a year; held &gt; 12 months</td></tr>
+        <tr><td>Other LTCG (112)</td><td class="r">{pct(SPECIAL_RATES.ltcg112)}</td><td>No indexation. Land/building bought before 23-Jul-2024: residents may pay 20% with indexation if lower</td></tr>
+        <tr><td>Debt MF bought after Mar-2023, other STCG</td><td class="r">Slab</td><td>Always slab rate regardless of holding</td></tr>
+        <tr><td>Buyback proceeds (from 1-Apr-2026)</td><td class="r">CG</td><td>Taxed as capital gains again, not as dividend</td></tr>
+        <tr><td>Lottery, games, betting</td><td class="r">{pct(SPECIAL_RATES.winnings)}</td><td>No exemption, no deductions</td></tr>
+        <tr><td>Crypto / VDA</td><td class="r">{pct(SPECIAL_RATES.vda)}</td><td>No set-off or carry-forward of losses; 1% TDS</td></tr>
+      </tbody></table>
+      <p>Residents can use any unused basic exemption against 111A/112/112A gains, but not against winnings or VDA.</p>
+
+      <h2 id="deductions">Deductions (old regime unless noted)</h2>
+      <table><thead><tr><th>Section</th><th>Limit</th><th>Individual</th><th>HUF</th></tr></thead><tbody>
+        <tr><td>Standard deduction (salary)</td><td>{fmt(STANDARD_DEDUCTION.old)} old · {fmt(STANDARD_DEDUCTION.new)} new</td><td>✓</td><td>—</td></tr>
+        <tr><td>80C / 80CCC / 80CCD(1)</td><td>{fmt(DEDUCTION_LIMITS.d80C)}</td><td>✓</td><td>✓ (for members)</td></tr>
+        <tr><td>80CCD(1B) own NPS</td><td>{fmt(DEDUCTION_LIMITS.d80CCD1B)}</td><td>✓</td><td>—</td></tr>
+        <tr><td>80CCD(2) employer NPS — <b>both regimes</b></td><td>14% new / 10% old of basic+DA</td><td>✓</td><td>—</td></tr>
+        <tr><td>80D health insurance</td><td>{fmt(DEDUCTION_LIMITS.d80D.normal)} / {fmt(DEDUCTION_LIMITS.d80D.senior)} senior, + parents</td><td>✓</td><td>✓ (members)</td></tr>
+        <tr><td>80E education loan interest</td><td>No cap, 8 years</td><td>✓</td><td>—</td></tr>
+        <tr><td>80G donations</td><td>50% / 100%, some capped at 10% of income</td><td>✓</td><td>✓</td></tr>
+        <tr><td>80GG rent (no HRA)</td><td>{fmt(DEDUCTION_LIMITS.d80GG.perMonth * 12)} / yr</td><td>✓</td><td>—</td></tr>
+        <tr><td>80TTA savings interest</td><td>{fmt(DEDUCTION_LIMITS.d80TTA)}</td><td>✓ (below 60)</td><td>✓</td></tr>
+        <tr><td>80TTB deposit interest</td><td>{fmt(DEDUCTION_LIMITS.d80TTB)}</td><td>✓ (resident 60+)</td><td>—</td></tr>
+        <tr><td>Home-loan interest, self-occupied (24(b))</td><td>{fmt(DEDUCTION_LIMITS.houseLoanSelfOccupied)}</td><td>✓</td><td>✓</td></tr>
+        <tr><td>80U / 80DD / 80DDB</td><td>Disability / treatment</td><td>✓</td><td>80DD, 80DDB</td></tr>
+      </tbody></table>
+
+      <h2 id="individual-vs-huf">Individual vs HUF — the differences that matter</h2>
+      <ul>
+        <li><b>Rebate:</b> HUFs never get 87A, so tax starts at ₹4 lakh (new) / ₹2.5 lakh (old).</li>
+        <li><b>No salary, no 44ADA:</b> an HUF can’t earn salary and can’t use the presumptive scheme for professionals; 44AD (business) is allowed.</li>
+        <li><b>Gifts:</b> gifts from members are exempt. Gifts from non-members above ₹50,000 in a year are fully taxable.</li>
+        <li><b>Clubbing (Sec 64(2)):</b> if a member transfers their own property or money to the HUF without adequate consideration, income from it is taxed in that member’s hands. Fund the HUF with gifts from non-member relatives, ancestral property, or its own income instead.</li>
+        <li><b>Form 15G:</b> an HUF can file 15G with the bank if its tax is nil; 15H is only for individuals aged 60+.</li>
+        <li><b>Advance tax:</b> no senior-citizen exemption — HUFs follow the normal schedule.</li>
+      </ul>
+
+      <h2 id="advance-tax">Advance tax</h2>
+      <p>Payable if tax for the year, after TDS/TCS, is {fmt(ADVANCE_TAX.threshold)} or more. Resident individuals aged 60+ with no business/professional income are exempt.</p>
+      <table><thead><tr><th>Due date</th><th class="r">Cumulative</th><th>234C if short</th></tr></thead><tbody>
+        {ADVANCE_TAX.instalments.map((i) => <tr><td>{d(i.due)}</td><td class="r">{pct(i.pct)}</td><td>1% × {i.months} month{i.months > 1 ? 's' : ''}{i.safePct < i.pct ? ` (none if ≥ ${pct(i.safePct)} paid)` : ''}</td></tr>)}
+      </tbody></table>
+      <ul>
+        <li><b>44AD / 44ADA:</b> the whole amount by 15 March.</li>
+        <li><b>234B:</b> if less than 90% is paid by 31 March, 1% a month (or part) on the shortfall from 1 April until paid.</li>
+        <li><b>234A:</b> 1% a month on unpaid tax for filing after the due date. <b>234F:</b> late fee ₹5,000 (₹1,000 if income ≤ ₹5 lakh).</li>
+        <li>Pay via incometax.gov.in → e-Pay Tax → type “Advance Tax (100)”. Self-assessment tax after the year is type 300.</li>
+      </ul>
+
+      <h2 id="due-dates">Return due dates for tax year {TAX_YEAR.label}</h2>
+      <table><tbody>
+        <tr><td>No business income (ITR-1/2)</td><td class="r">{d(RETURN_DUE.noBusiness)}</td></tr>
+        <tr><td>Business/profession, no audit (ITR-3/4)</td><td class="r">{d(RETURN_DUE.businessNonAudit)}</td></tr>
+        <tr><td>Tax audit cases</td><td class="r">{d(RETURN_DUE.audit)}</td></tr>
+        <tr><td>Belated / revised return</td><td class="r">{d(RETURN_DUE.belated)}</td></tr>
+      </tbody></table>
+
+      <h2 id="edge-cases">Edge cases TaxLens handles</h2>
+      <ul>
+        <li>Cumulative FD interest is taxed on accrual each year; banks report it in AIS that way and deduct 10% TDS above ₹50,000 (₹1 lakh for seniors) per bank.</li>
+        <li>Income-tax refunds are not income, but the interest added to them is.</li>
+        <li>Card cashback and rewards are treated as discounts, not income.</li>
+        <li>Agricultural income above ₹5,000 is exempt but pushes other income into higher slabs (partial integration).</li>
+        <li>House-property loss: up to ₹2 lakh can reduce other income in the old regime; none in the new regime (carry forward only).</li>
+        <li>Business losses can’t reduce salary; speculative losses can only reduce speculative income.</li>
+        <li>Cash deposits of ₹10 lakh+ a year are reported to the department (SFT); receiving ₹2 lakh+ in cash from one person attracts a penalty under 269ST.</li>
+        <li>Tax paid via card or net banking appears as “CBDT” in statements — confirm it was for this PAN and this year.</li>
+      </ul>
+      <p class="small faint mt-lg">
+        This guide summarises the rules as understood in October 2026 for planning purposes. It is not legal advice — verify with the Act, CBDT notifications and Form 26AS/AIS before filing.
+      </p>
+    </article>
+  </main>
+</Layout>
