@@ -62,9 +62,12 @@ export default function App() {
       const huf = /\bHUF\b/i.test(p.meta.holderName);
       const dupes = p.transactions.length - fresh.length;
       setToast(`Loaded ${fresh.length} transactions${dupes ? ` · skipped ${dupes} duplicates` : ''}${isFirst && huf ? ' · detected HUF' : ''}`);
+      const sameFile = s.statements.some(
+        (x) => x.meta.accountNo === p.meta.accountNo && x.meta.from === p.meta.from && x.meta.to === p.meta.to && x.meta.fileName === p.meta.fileName,
+      );
       return {
         ...s,
-        statements: [...s.statements, { meta: p.meta, warnings: p.warnings }],
+        statements: sameFile ? s.statements : [...s.statements, { meta: p.meta, warnings: p.warnings }],
         transactions,
         manual: isFirst ? { ...s.manual, profile: { ...s.manual.profile, type: huf ? 'huf' : 'individual' } } : s.manual,
       };

@@ -171,8 +171,16 @@ function extractMeta(lines: Line[], fileName: string): StatementMeta {
     const type = /Account\s*Type\s*:?\s*(.+)$/i.exec(t);
     if (type && !meta.accountType) meta.accountType = type[1].trim();
     if (!meta.holderName) {
-      const first = l.items[0]?.str.trim() ?? '';
-      const name = /^(M\/S\.?|MR\.?|MRS\.?|MS\.?|MISS\.?|DR\.?|MASTER\.?)\s+(.+)$/i.exec(first);
+      // The salutation and name are often separate runs, and the right-hand address
+      // column can share the line — take only the contiguous run of items from the left.
+      const block: string[] = [];
+      let prevEnd = -Infinity;
+      for (const it of l.items) {
+        if (block.length && it.x - prevEnd > 40) break;
+        block.push(it.str.trim());
+        prevEnd = it.x + it.w;
+      }
+      const name = /^(M\/S\.?|MR\.?|MRS\.?|MS\.?|MISS\.?|DR\.?|MASTER\.?)\s+(.+)$/i.exec(block.join(' '));
       if (name) meta.holderName = name[2].replace(/\s+/g, ' ').trim();
     }
   }
@@ -222,7 +230,13 @@ export function parseHdfcItems(items: TextItem[], fileName = 'statement.pdf'): P
       done = true;
       break;
     }
-    if (!inTable || !cols) continue;
+    if (!cols) continue;
+    // HDFC prints the column header only on page 1. On later pages the table starts
+    // right below the "Statement From … To …" line that repeats on every page.
+    if (/Statement\s*From/i.test(line.text)) {
+      inTable = true;
+      continue;
+    }
     if (STOP_RE.test(line.text) || /^Page\s*No/i.test(line.text)) {
       inTable = false;
       continue;
@@ -230,6 +244,9 @@ export function parseHdfcItems(items: TextItem[], fileName = 'statement.pdf'): P
 
     const first = line.items[0];
     const startsTxn = DATE_RE.test(first.str.trim()) && first.x < cols.narrLeft;
+    // Fallback for layouts without that line: a dated row also opens the table.
+    if (!inTable && startsTxn) inTable = true;
+    if (!inTable) continue;
     const c = cols;
 
     if (startsTxn) {

@@ -168,7 +168,9 @@ export function Overview(props: {
       </div>
 
       <div class="grid grid-4">
-        <Stat glyph="₹" label="Estimated total income" value={short(r.totalIncome)} sub={`Gross ${money(r.grossTotalIncome)} · deductions ${money(r.deductions)}`} />
+        <Stat glyph="₹" label="Estimated total income" value={short(r.totalIncome)} sub={d.pendingFds.count ? (
+            <a href="#" onClick={(e) => { e.preventDefault(); props.goto('deposits'); }}>⚠ Excludes interest on {d.pendingFds.count} FD{d.pendingFds.count > 1 ? 's' : ''} — add rates →</a>
+          ) : `Gross ${money(r.grossTotalIncome)} · deductions ${money(r.deductions)}`} />
         <Stat accent glyph="⚖" label={`Tax liability · ${d.regime} regime`} value={money(r.totalTax)} sub={d.comparison.saving ? `Saves ${money(d.comparison.saving)} vs ${d.regime === 'new' ? 'old' : 'new'}` : 'Same in both regimes'} />
         <Stat glyph="✓" label="Paid so far" value={money(paid)} sub={`Advance ${money(d.advance.paidAdvance)} · TDS/TCS ${money(r.tdsTcs)}`} />
         <Stat

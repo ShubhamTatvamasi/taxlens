@@ -61,7 +61,11 @@ export function fakeHdfcStatement(holder: string, pagesOfRows: FakeRow[][], summ
   const pages = pagesOfRows.map((rows, pi) => {
     const items: Placed[] = [
       { text: `Page No .: ${pi + 1}`, x: 250, y: 820 },
-      { text: holder, x: 50, y: 780 },
+      // Salutation and name are separate runs; the address column shares the line.
+      { text: holder.split(' ')[0], x: 34, y: 780 },
+      { text: holder.split(' ').slice(1).join(' '), x: 58, y: 780 },
+      { text: 'City', x: 340, y: 780 },
+      { text: ': SAMPLETOWN', x: 397, y: 780 },
       { text: '12 SAMPLE STREET', x: 50, y: 770 },
       { text: 'Account No', x: 330, y: 760 },
       { text: ': 50100000009999 Classic', x: 380, y: 760 },
@@ -71,7 +75,8 @@ export function fakeHdfcStatement(holder: string, pagesOfRows: FakeRow[][], summ
       { text: 'To : 15/10/2026', x: 160, y: 720 },
     ];
     const hy = 700;
-    items.push(
+    // Like HDFC, the column header appears on the first page only.
+    if (pi === 0) items.push(
       { text: 'Date', x: 40, y: hy },
       { text: 'Narration', x: 140, y: hy },
       { text: 'Chq./Ref.No.', x: 290, y: hy },
@@ -82,6 +87,15 @@ export function fakeHdfcStatement(holder: string, pagesOfRows: FakeRow[][], summ
     );
     let y = hy - 14;
     for (const r of rows) {
+      if (!r.date) {
+        // Narration spilling over from the previous page
+        for (const extra of r.narration) {
+          items.push({ text: extra, x: 72, y });
+          y -= 10;
+        }
+        y -= 4;
+        continue;
+      }
       items.push({ text: r.date, x: 40, y });
       if (r.narration[0]) items.push({ text: r.narration[0], x: 72, y });
       if (r.ref) items.push({ text: r.ref, x: 340, y, right: true });

@@ -22,9 +22,10 @@ const pdf = fakeHdfcStatement(
       { date: '02/04/26', narration: ['UPI-ASHA SINGH-asha.s@okfake-SBIN0000001', '-PAYMENT FROM PHONE'], ref: '0000100000000001', d: '5,000.00', bal: '55,000.00' },
       { date: '15/06/26', narration: ['POS 400000XXXXXX0000 PAY*CBDT TIN 2 0'], ref: '0000100000000002', w: '20,000.00', bal: '35,000.00' },
       { date: '01/07/26', narration: ['INTEREST PAID TILL 30-JUN-2026'], ref: '000000000000000', d: '300.00', bal: '35,300.00' },
-      { date: '05/07/26', narration: ['50100000001111-TPT-HDFC0000AAAA0000-RAVI K', 'UMAR'], ref: '0000000000000003', d: '100,000.00', bal: '135,300.00' },
+      { date: '05/07/26', narration: ['50100000001111-TPT-HDFC0000AAAA0000-RAVI K'], ref: '0000000000000003', d: '100,000.00', bal: '135,300.00' },
     ],
     [
+      { date: '', narration: ['UMAR'], ref: '', bal: '' },
       { date: '06/07/26', narration: ['FD BOOKED - 50300000000001 : RAVI KUMAR', 'HUF'], ref: '6000000000000000000004', w: '100,000.00', bal: '35,300.00' },
       { date: '24/08/26', narration: ['NEFT CR-SBIN0000TBU-ITDTAX REFUND 2026-2', '7 AAAAA0000A-RAVI KUMAR HUF'], ref: 'SBIN000000000005', d: '1,200.00', bal: '36,500.00' },
       { date: '10/09/26', narration: ['UPI-REWARDCO PVT LTD-cashback@okfake-REWARDS PAYOUT'], ref: '0000100000000006', d: '101.50', bal: '36,601.50' },

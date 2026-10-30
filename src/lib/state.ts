@@ -91,6 +91,8 @@ export interface Derived {
   totals: CategoryTotal[];
   byCategory: Partial<Record<Category, CategoryTotal>>;
   fdInterest: number;
+  /** FDs booked in the statements whose interest isn't counted yet (not in planner, or no rate) */
+  pendingFds: { count: number; principal: number };
   statementPayments: Payment[];
   allPayments: Payment[];
   input: TaxInput;
@@ -143,6 +145,9 @@ export function derive(state: AppState): Derived {
     .reduce((s, c) => s + (state.refundInterest[c.t.id] ?? 0), 0);
 
   const fdInterest = state.fds.filter((f) => f.include).reduce((s, f) => s + fdInterestForYear(f), 0);
+  const counted = new Set(state.fds.filter((f) => f.include && f.ratePct > 0).map((f) => f.id));
+  const pendingTx = yearTx.filter((c) => c.category === 'fd_booked' && !counted.has(`stmt-${c.t.id}`));
+  const pendingFds = { count: pendingTx.length, principal: pendingTx.reduce((s, c) => s + c.t.withdrawal, 0) };
 
   const statementPayments: Payment[] = yearTx
     .filter((c) => c.category === 'tax_advance' && c.t.date <= TAX_YEAR.end)
@@ -210,7 +215,7 @@ export function derive(state: AppState): Derived {
   const bankInterest = input.other.depositInterest;
   const estimatedFdTds = estimatedBankTds(bankInterest, senior);
 
-  const insights = buildInsights({ state, input, yearTx, byCategory, comparison, regime, advance, coverage, names, estimatedFdTds, returnDue });
+  const insights = buildInsights({ state, input, yearTx, byCategory, comparison, regime, advance, coverage, names, estimatedFdTds, returnDue, pendingFds });
 
   return {
     names,
@@ -221,6 +226,7 @@ export function derive(state: AppState): Derived {
     totals,
     byCategory,
     fdInterest,
+    pendingFds,
     statementPayments,
     allPayments,
     input,
@@ -244,6 +250,7 @@ interface InsightCtx {
   names: string[];
   estimatedFdTds: number;
   returnDue: string;
+  pendingFds: Derived['pendingFds'];
 }
 
 function buildInsights(c: InsightCtx): Insight[] {
@@ -277,11 +284,10 @@ function buildInsights(c: InsightCtx): Insight[] {
         : 'Projection is off — tax is computed only on income seen so far. Advance tax is based on the estimated income for the whole year, so add expected income for the remaining months.',
     });
 
-  const fdBooked = c.yearTx.filter((x) => x.category === 'fd_booked');
-  if (fdBooked.length && fdBooked.length > state.fds.length)
+  if (c.pendingFds.count)
     out.push({
       level: 'action',
-      title: `${plural(fdBooked.length, 'FD booking')} found`,
+      title: `Interest on ${plural(c.pendingFds.count, 'FD')} (${money(c.pendingFds.principal)}) is not counted yet`,
       body: 'Interest on cumulative FDs accrues every year even though it is paid at maturity, and banks report it in AIS on accrual. Add each FD with its rate and maturity in the FD planner.',
     });
 
