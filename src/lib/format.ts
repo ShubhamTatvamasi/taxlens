@@ -28,6 +28,12 @@ export const todayIso = () => {
 };
 
 export function parseAmount(s: string): number {
+  const neg = /^\s*[-−]/.test(s);
+  const n = parseUnsigned(s.replace(/^\s*[-−]/, ''));
+  return neg ? -n : n;
+}
+
+function parseUnsigned(s: string): number {
   const cleaned = s.replace(/[₹,\s]/g, '');
   if (!cleaned) return 0;
   const lakh = /^([\d.]+)\s*l$/i.exec(cleaned);

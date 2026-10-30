@@ -73,7 +73,7 @@ export function Details(props: { state: AppState; d: Derived; set: (fn: (s: AppS
             <MoneyField label="Other exempt allowances" {...f('salary', 'otherExempt')} hint="LTA, children education etc." />
             <MoneyField label="Professional tax" {...f('salary', 'professionalTax')} hint="Max ₹2,500, old regime" />
             <MoneyField label="Employer NPS (80CCD(2))" {...f('salary', 'employerNps')} hint="Both regimes · 14% / 10% of basic+DA" />
-            <MoneyField label="Family pension" {...f('other', 'familyPension')} hint="⅓ or ₹25k/₹15k deduction" />
+            <MoneyField label="Family pension" {...f('other', 'familyPension')} fromStatement={stmt('family_pension')} hint="⅓ or ₹25k/₹15k deduction" />
           </div>
           <div class="mt">
             <label class="check small">
@@ -106,7 +106,7 @@ export function Details(props: { state: AppState; d: Derived; set: (fn: (s: AppS
               { value: '44ADA', label: '44ADA — profession (50%)' },
             ]}
           />
-          {m.business.mode === 'regular' && <MoneyField label="Net profit (loss as negative)" {...f('business', 'netProfit')} />}
+          {m.business.mode === 'regular' && <MoneyField label="Net profit (loss as negative)" allowNegative {...f('business', 'netProfit')} />}
           {m.business.mode === '44AD' && (
             <>
               <MoneyField label="Turnover — digital/bank" {...f('business', 'turnoverDigital')} hint={!m.business.turnoverDigital && stmt('business_receipt') ? `Using ${money(stmt('business_receipt'))} from statement` : '6% deemed profit'} />
@@ -117,7 +117,7 @@ export function Details(props: { state: AppState; d: Derived; set: (fn: (s: AppS
             <MoneyField label="Gross receipts" {...f('business', 'grossReceipts')} hint={!m.business.grossReceipts && stmt('business_receipt') ? `Using ${money(stmt('business_receipt'))} from statement` : '50% deemed profit'} />
           )}
           {(m.business.mode === '44AD' || m.business.mode === '44ADA') && <MoneyField label="Declare higher profit (optional)" {...f('business', 'declaredIncome')} />}
-          {m.business.mode !== 'none' && <MoneyField label="Intraday / speculative profit" {...f('business', 'speculative')} hint="Losses can’t reduce other income" />}
+          {m.business.mode !== 'none' && <MoneyField label="Intraday / speculative profit" allowNegative {...f('business', 'speculative')} hint="Losses can’t reduce other income" />}
         </div>
         {m.business.mode !== 'none' && (
           <div class="mt">
@@ -137,9 +137,15 @@ export function Details(props: { state: AppState; d: Derived; set: (fn: (s: AppS
           <MoneyField label="STCG — other (slab rate)" {...f('gains', 'stcgOther')} hint="Debt MF, short-term property etc." />
           <MoneyField label="LTCG — other assets" {...f('gains', 'ltcg112')} hint="12.5%, no indexation" />
           <MoneyField label="LTCG — land/building bought before 23-Jul-2024" {...f('gains', 'ltcgProperty')} hint="Gain without indexation" />
-          <MoneyField label="…same gain with indexation" {...f('gains', 'ltcgPropertyIndexed')} hint="Lower of 12.5% / 20% indexed is used (residents)" />
+          {m.gains.indexationOption && <MoneyField label="…same gain with indexation" {...f('gains', 'ltcgPropertyIndexed')} hint="Can be 0 — the lower tax is used" />}
           <MoneyField label="Crypto / VDA gains" {...f('other', 'vda')} hint="Flat 30%, no set-off" />
         </div>
+        {m.gains.ltcgProperty > 0 && (
+          <label class="check small mt">
+            <input type="checkbox" checked={m.gains.indexationOption} onChange={(e) => setM((x) => ({ ...x, gains: { ...x.gains, indexationOption: (e.target as HTMLInputElement).checked } }))} />
+            Property bought before 23-Jul-2024 — compare 12.5% with 20% after indexation (residents)
+          </label>
+        )}
       </Card>
 
       <Card title="Other income" subtitle="Statement amounts (projected) are added to what you enter here.">

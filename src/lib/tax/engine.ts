@@ -79,6 +79,8 @@ export interface CapitalGainsInput {
   ltcgProperty: number;
   /** Same property — gain with indexation (20% option for resident individual/HUF) */
   ltcgPropertyIndexed: number;
+  /** Compare with the 20%-with-indexation option (indexed gain may legitimately be 0) */
+  indexationOption: boolean;
 }
 
 export interface OtherSourcesInput {
@@ -231,8 +233,8 @@ function computeCore(p: Parts, regime: Regime, profile: Profile): Core {
   const ti = totalOf(p);
 
   const normalTaxGross =
-    p.agri > AGRI_INTEGRATION_THRESHOLD && p.normal > basic
-      ? slabTax(p.normal + p.agri, slabs) - slabTax(basic + p.agri, slabs)
+    p.agri > AGRI_INTEGRATION_THRESHOLD && ti > basic
+      ? pos(slabTax(p.normal + p.agri, slabs) - slabTax(basic + p.agri, slabs))
       : slabTax(p.normal, slabs);
   let normalTax = normalTaxGross;
 
@@ -271,7 +273,8 @@ function computeCore(p: Parts, regime: Regime, profile: Profile): Core {
       else if (normalTax > ti - REBATE.new.incomeLimit && p.normal > 0)
         marginalRelief = normalTax - (ti - REBATE.new.incomeLimit);
     } else if (ti <= REBATE.old.incomeLimit) {
-      rebate = Math.min(REBATE.old.max, normalTax + stcgTax + ltcgTax + propTax + flatTax);
+      // Not against 112A, winnings (115BB) or VDA (115BBH) tax.
+      rebate = Math.min(REBATE.old.max, normalTax + stcgTax + ltcgTax + propTax);
     }
   }
 
@@ -305,10 +308,12 @@ function computeCore(p: Parts, regime: Regime, profile: Profile): Core {
 /** Reduce income parts by `by`, normal income first, used for surcharge marginal relief. */
 function reduceParts(p: Parts, by: number): Parts {
   const q = { ...p };
-  const order: (keyof Parts)[] = ['normal', 'vda', 'winnings', 'stcg111A', 'ltcg112', 'ltcg112A'];
+  const order: (keyof Parts)[] = ['normal', 'vda', 'winnings', 'stcg111A', 'propUnindexed', 'ltcg112', 'ltcg112A'];
   for (const k of order) {
     const cut = Math.min(by, q[k]);
+    if (cut <= 0) continue;
     q[k] -= cut;
+    if (k === 'propUnindexed' && q.propIndexed >= 0) q.propIndexed = pos(q.propIndexed - cut);
     by -= cut;
     if (by <= 0) break;
   }
@@ -441,6 +446,11 @@ export function computeRegime(input: TaxInput, regime: Regime): RegimeResult {
   // Set off business loss against other non-salary heads; HP loss (old) against everything.
   let otherSources = otherSlab;
   let stcgOther = g.stcgOther;
+  let stcg111A = pos(g.stcg111A);
+  let ltcgProperty = pos(g.ltcgProperty);
+  let ltcgPropertyIndexed = pos(g.ltcgPropertyIndexed);
+  let ltcg112 = pos(g.ltcg112);
+  let ltcg112A = pos(g.ltcg112A);
   if (business < 0) {
     let loss = -business;
     const cut = (v: number) => {
@@ -451,18 +461,25 @@ export function computeRegime(input: TaxInput, regime: Regime): RegimeResult {
     house = cut(house);
     otherSources = cut(otherSources);
     stcgOther = cut(stcgOther);
+    // Then special-rate gains, highest rate first. Not winnings or VDA.
+    stcg111A = cut(stcg111A);
+    const beforeProp = ltcgProperty;
+    ltcgProperty = cut(ltcgProperty);
+    ltcgPropertyIndexed = pos(ltcgPropertyIndexed - (beforeProp - ltcgProperty));
+    ltcg112 = cut(ltcg112);
+    ltcg112A = cut(ltcg112A);
     business = 0;
     if (loss > 0) cf.push({ label: 'Business loss (8 years)', amount: loss });
   }
   lines[hpIdx].amount = house;
   lines[bizIdx].amount = business;
 
-  const capitalGains = stcgOther + g.stcg111A + g.ltcg112A + g.ltcg112 + g.ltcgProperty;
+  const capitalGains = stcgOther + stcg111A + ltcg112A + ltcg112 + ltcgProperty;
   lines.push({ label: 'Capital gains', amount: capitalGains, kind: 'head' });
-  if (g.stcg111A) lines.push({ label: 'STCG on listed equity (20%)', amount: g.stcg111A, kind: 'sub' });
-  if (g.ltcg112A) lines.push({ label: 'LTCG on listed equity (12.5% above ₹1.25L)', amount: g.ltcg112A, kind: 'sub' });
-  if (g.ltcg112) lines.push({ label: 'Other LTCG (12.5%)', amount: g.ltcg112, kind: 'sub' });
-  if (g.ltcgProperty) lines.push({ label: 'LTCG on land/building', amount: g.ltcgProperty, kind: 'sub' });
+  if (stcg111A) lines.push({ label: 'STCG on listed equity (20%)', amount: stcg111A, kind: 'sub' });
+  if (ltcg112A) lines.push({ label: 'LTCG on listed equity (12.5% above ₹1.25L)', amount: ltcg112A, kind: 'sub' });
+  if (ltcg112) lines.push({ label: 'Other LTCG (12.5%)', amount: ltcg112, kind: 'sub' });
+  if (ltcgProperty) lines.push({ label: 'LTCG on land/building', amount: ltcgProperty, kind: 'sub' });
   if (stcgOther) lines.push({ label: 'STCG at slab rates', amount: stcgOther, kind: 'sub' });
 
   const flat = o.winnings + pos(o.vda);
@@ -482,7 +499,7 @@ export function computeRegime(input: TaxInput, regime: Regime): RegimeResult {
   // An old-regime HP loss (already capped at ₹2L) also reduces salary here.
   const normalBeforeDed = pos(salary + house + business + otherSources + stcgOther);
 
-  const grossTotalIncome = normalBeforeDed + g.stcg111A + g.ltcg112A + g.ltcg112 + g.ltcgProperty + flat;
+  const grossTotalIncome = normalBeforeDed + stcg111A + ltcg112A + ltcg112 + ltcgProperty + flat;
   lines.push({ label: 'Gross total income', amount: grossTotalIncome, kind: 'total' });
 
   // ---- Deductions ----
@@ -494,6 +511,8 @@ export function computeRegime(input: TaxInput, regime: Regime): RegimeResult {
   };
   let ded = 0;
   const basicDA = input.salary.basicDA > 0 ? input.salary.basicDA : input.salary.gross;
+  if (isInd && input.salary.employerNps > 0 && !(input.salary.basicDA > 0))
+    warnings.push('Enter basic + DA to apply the correct employer-NPS (80CCD(2)) limit — gross salary is used for now.');
   if (isInd) {
     ded += add('80CCD(2) employer NPS', Math.min(input.salary.employerNps, L.d80CCD2Pct[regime] * basicDA));
     ded += add('80CCH Agniveer', d.d80CCH);
@@ -530,11 +549,12 @@ export function computeRegime(input: TaxInput, regime: Regime): RegimeResult {
     normal,
     agri: o.agricultural,
     dividend: Math.min(o.dividend, normal),
-    stcg111A: pos(g.stcg111A),
-    ltcg112: pos(g.ltcg112),
-    propUnindexed: pos(g.ltcgProperty),
-    propIndexed: g.ltcgProperty > 0 && profile.resident ? pos(g.ltcgPropertyIndexed || g.ltcgProperty) : -1,
-    ltcg112A: pos(g.ltcg112A),
+    stcg111A,
+    ltcg112,
+    propUnindexed: ltcgProperty,
+    // -1 = no indexation option (not chosen, or non-resident)
+    propIndexed: ltcgProperty > 0 && profile.resident && g.indexationOption ? ltcgPropertyIndexed : -1,
+    ltcg112A,
     winnings: pos(o.winnings),
     vda: pos(o.vda),
   };
@@ -630,7 +650,7 @@ export const emptyInput = (): TaxInput => ({
   salary: { gross: 0, basicDA: 0, hraReceived: 0, rentPaid: 0, metro: false, otherExempt: 0, professionalTax: 0, employerNps: 0 },
   house: { letOutRent: 0, municipalTax: 0, letOutInterest: 0, selfOccupiedInterest: 0 },
   business: { mode: 'none', netProfit: 0, turnoverDigital: 0, turnoverCash: 0, grossReceipts: 0, declaredIncome: 0, speculative: 0, audit: false },
-  gains: { stcg111A: 0, ltcg112A: 0, stcgOther: 0, ltcg112: 0, ltcgProperty: 0, ltcgPropertyIndexed: 0 },
+  gains: { stcg111A: 0, ltcg112A: 0, stcgOther: 0, ltcg112: 0, ltcgProperty: 0, ltcgPropertyIndexed: 0, indexationOption: false },
   other: { savingsInterest: 0, depositInterest: 0, dividend: 0, familyPension: 0, refundInterest: 0, giftsFromOthers: 0, other: 0, winnings: 0, vda: 0, agricultural: 0 },
   deductions: { d80C: 0, d80CCD1B: 0, d80DSelf: 0, d80DParents: 0, parentsSenior: false, d80E: 0, d80G: 0, rentPaidNoHra: 0, d80CCH: 0, disability: 0, other: 0 },
   tdsTcs: 0,

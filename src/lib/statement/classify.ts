@@ -3,6 +3,7 @@ import type { Transaction } from './hdfc';
 export type Category =
   // credits
   | 'salary'
+  | 'family_pension'
   | 'savings_interest'
   | 'fd_interest'
   | 'dividend'
@@ -47,6 +48,7 @@ export interface CategoryInfo {
 
 export const CATEGORIES: Record<Category, CategoryInfo> = {
   salary: { label: 'Salary / pension', dir: 'cr', kind: 'taxable', recurring: true, help: 'Bank credit is net of TDS. For accuracy enter gross salary from Form 16 / payslips in Details.' },
+  family_pension: { label: 'Family pension', dir: 'cr', kind: 'taxable', recurring: true, help: 'Pension received as a family member — other sources, with ⅓ / ₹25k deduction (not salary).' },
   savings_interest: { label: 'Savings interest', dir: 'cr', kind: 'taxable', recurring: true, help: 'Taxable under "Other sources". 80TTA/80TTB deduction in old regime.' },
   fd_interest: { label: 'FD / RD / bond interest', dir: 'cr', kind: 'taxable', help: 'Taxable. Do not also add the same FD in the FD planner.' },
   dividend: { label: 'Dividend', dir: 'cr', kind: 'taxable', help: 'Taxable at slab rates. TDS at 10% above ₹10,000 per company.' },
@@ -99,7 +101,7 @@ export function ownNamesFromHolder(holder: string): string[] {
   return names;
 }
 
-type Rule = { cat: Category; dir: 'cr' | 'dr'; re: RegExp };
+type Rule = { cat: Category; dir: 'cr' | 'dr'; re: RegExp; not?: RegExp };
 
 const RULES: Rule[] = [
   // Credits
@@ -107,19 +109,20 @@ const RULES: Rule[] = [
   { cat: 'savings_interest', dir: 'cr', re: /INTEREST\s*PAID\s*TILL|^\s*INT\.?\s*PD|CREDIT\s*INTEREST|SB\s*INT|SAVINGS?\s*INT/i },
   { cat: 'fd_interest', dir: 'cr', re: /\b(FD|TD|DEPOSIT|RD|BOND|NCD)\b.{0,20}\bINT(EREST)?\b|INT(EREST)?\.?\s*(ON|FOR)\s*(FD|TD|DEPOSIT|RD)|INTEREST\s*PAYOUT/i },
   { cat: 'fd_maturity', dir: 'cr', re: /FD\s*(CLOS|MATUR|PREMAT|LIQ|REDEEM)|CLOSURE\s*PROCEEDS|TD\s*(CLOS|MAT)|DEPOSIT\s*(CLOS|MATUR)|SWEEP\s*IN/i },
+  { cat: 'family_pension', dir: 'cr', re: /FAMILY\s*PENSION|\bFAM\s*PEN/i },
   { cat: 'salary', dir: 'cr', re: /SALARY|\bSAL\b|PAYROLL|SAL\s*CR|PENSION/i },
-  { cat: 'dividend', dir: 'cr', re: /DIVIDEND|\bDIV\b|\bINT\s*DIV|ACH\s*C-|NACH.*DIV|FINAL\s*DIV|INTERIM\s*DIV/i },
+  { cat: 'dividend', dir: 'cr', re: /DIVIDEND|\bDIV\b|\bINT\s*DIV|FINAL\s*DIV|INTERIM\s*DIV/i },
   { cat: 'cashback', dir: 'cr', re: /CASH\s*BACK|CASHBACK|REWARDS?\s*(PAYOUT|CREDIT)?|SCRATCH\s*CARD|\bCB\s*CREDIT/i },
   { cat: 'sale_proceeds', dir: 'cr', re: /ZERODHA|BROKING|SECURITIES|CLEARING|\bICCL\b|NSE\s*CL|BSE\s*CL|REDEMPTION|REDEMP|\bCAMS\b|KFIN|MUTUAL\s*FUND|GROWW|UPSTOX|ANGEL\s*ONE|\bMF\b/i },
   { cat: 'reversal', dir: 'cr', re: /REVERSAL|\bREV\b|REFUND|RETURNED|CHARGEBACK|FAILED/i },
-  { cat: 'rent', dir: 'cr', re: /\bRENT\b|RENTAL|LEASE/i },
+  { cat: 'rent', dir: 'cr', re: /\bRENT\b|\bRENTAL\b|\bLEASE\s*RENT/i },
   { cat: 'loan', dir: 'cr', re: /LOAN\s*DISB|DISBURSAL|DISBURSEMENT/i },
   // Debits
-  { cat: 'tax_advance', dir: 'dr', re: /CBDT|ITNS\s*28|INCOME\s*TAX|OLTAS|E-?PAY\s*TAX|TAX\s*PAYMENT|\bTIN\s*2|CHALLAN\s*280|DIRECT\s*TAX/i },
+  { cat: 'tax_advance', dir: 'dr', re: /CBDT|ITNS\s*28|INCOME\s*TAX|OLTAS|E-?PAY\s*TAX|\bTIN\s*2|CHALLAN\s*280|\bITD\b/i, not: /PROPERTY|\bGST|CBIC|MUNICIPAL|PROFESSION|WATER|ROAD\s*TAX|NAGAR/i },
   { cat: 'fd_booked', dir: 'dr', re: /FD\s*BOOK|FD\s*THROUGH|TD\s*BOOK|DEPOSIT\s*BOOK|SWEEP\s*OUT|FD\s*CREATION|NEW\s*FD/i },
-  { cat: 'ded_80c', dir: 'dr', re: /\bLIC\b|LIFE\s*INS|\bPPF\b|SUKANYA|\bSSY\b|ELSS|TAX\s*SAVER|\bNPS\b|PRAN|\bNSC\b|TUITION/i },
+  { cat: 'ded_80c', dir: 'dr', re: /\bLIC\b|LIFE\s*INS|\bPPF\b|SUKANYA\s*SAM|\bSSY\b|ELSS|TAX\s*SAVER|\bNPS\b|\bPRAN\b|\bNSC\b|TUITION/i },
   { cat: 'ded_80d', dir: 'dr', re: /HEALTH\s*INS|MEDICLAIM|STAR\s*HEALTH|NIVA\s*BUPA|CARE\s*HEALTH|ERGO|LOMBARD|ADITYA\s*BIRLA\s*HEALTH|MANIPAL\s*CIGNA|HEALTH\s*CHECK/i },
-  { cat: 'ded_80g', dir: 'dr', re: /DONATION|PM\s*CARES|PMNRF|CHARIT|FOUNDATION|\bTRUST\b/i },
+  { cat: 'ded_80g', dir: 'dr', re: /DONAT|PM\s*CARES|PMNRF|CHARIT/i },
   { cat: 'investment', dir: 'dr', re: /ZERODHA|ZERNSE|BROKING|SECURITIES|CLEARING|\bICCL\b|^MFD|MUTUAL\s*FUND|\bMF\b|\bSIP\b|\bSTP\b|GROWW|UPSTOX|KUVERA|INDMONEY|ANGEL\s*ONE|BSE\s*STAR|NSE|\bCAMS\b|KFIN|SMALLCASE|GOLD|SGB/i },
   { cat: 'rent_paid', dir: 'dr', re: /\bRENT\b|NOBROKER|HOUSING\s*RENT/i },
 ];
@@ -140,7 +143,7 @@ export function classify(t: Transaction, ctx: ClassifyContext): Category {
   }
 
   for (const r of RULES) {
-    if (r.dir === dir && r.re.test(text)) return r.cat;
+    if (r.dir === dir && r.re.test(text) && !r.not?.test(text)) return r.cat;
   }
   return isCredit ? 'review' : 'expense';
 }

@@ -119,11 +119,25 @@ function coverageOf(state: AppState) {
   return { from, to, days, factor: days > 0 && state.project ? Math.max(1, yearDays / days) : 1 };
 }
 
+/** Projection factor per statement file, so accounts with different periods project correctly. */
+function factorsBySource(state: AppState): Map<string, number> {
+  const yearDays = dayDiff(TAX_YEAR.start, TAX_YEAR.end);
+  const m = new Map<string, number>();
+  for (const s of state.statements) {
+    const from = s.meta.from && s.meta.from > TAX_YEAR.start ? s.meta.from : TAX_YEAR.start;
+    const to = s.meta.to && s.meta.to < TAX_YEAR.end ? s.meta.to : TAX_YEAR.end;
+    const days = to >= from ? dayDiff(from, to) : 0;
+    m.set(s.meta.fileName, days > 0 && state.project ? Math.max(1, yearDays / days) : 1);
+  }
+  return m;
+}
+
 export function derive(state: AppState): Derived {
   const names = holderNames(state);
   const categorized = state.transactions.map((t) => ({ t, category: categoryOf(state, t, names) }));
   const yearTx = categorized.filter((c) => inYear(c.t.date));
   const coverage = coverageOf(state);
+  const factors = factorsBySource(state);
 
   const byCategory: Partial<Record<Category, CategoryTotal>> = {};
   for (const { t, category } of yearTx) {
@@ -131,10 +145,7 @@ export function derive(state: AppState): Derived {
     const ct = (byCategory[category] ??= { category, count: 0, actual: 0, projected: 0 });
     ct.count++;
     ct.actual += amt;
-  }
-  for (const ct of Object.values(byCategory)) {
-    if (!ct) continue;
-    ct.projected = state.recurring[ct.category] ? ct.actual * coverage.factor : ct.actual;
+    ct.projected += state.recurring[category] ? amt * (factors.get(t.source) ?? coverage.factor) : amt;
   }
   const totals = Object.values(byCategory).filter(Boolean) as CategoryTotal[];
   const p = (c: Category) => byCategory[c]?.projected ?? 0;
@@ -177,6 +188,7 @@ export function derive(state: AppState): Derived {
       savingsInterest: m.other.savingsInterest + p('savings_interest'),
       depositInterest: m.other.depositInterest + p('fd_interest') + fdInterest,
       dividend: m.other.dividend + p('dividend'),
+      familyPension: m.other.familyPension + p('family_pension'),
       refundInterest: m.other.refundInterest + p('refund_interest') + refundInterest,
       giftsFromOthers: m.other.giftsFromOthers + p('gift_nonrelative'),
       other: m.other.other + p('other_taxable'),
@@ -289,6 +301,13 @@ function buildInsights(c: InsightCtx): Insight[] {
       level: 'action',
       title: `Interest on ${plural(c.pendingFds.count, 'FD')} (${money(c.pendingFds.principal)}) is not counted yet`,
       body: 'Interest on cumulative FDs accrues every year even though it is paid at maturity, and banks report it in AIS on accrual. Add each FD with its rate and maturity in the FD planner.',
+    });
+
+  if (cnt('fd_interest') && state.fds.some((f) => f.include && f.ratePct > 0))
+    out.push({
+      level: 'warn',
+      title: 'Check for FD interest counted twice',
+      body: `The statement has ${plural(cnt('fd_interest'), 'FD interest credit')} and the FD planner also accrues interest. If a planner FD pays its interest into an uploaded account, untick “Include” for that FD.`,
     });
 
   if (isHuf && cnt('own_transfer_in'))

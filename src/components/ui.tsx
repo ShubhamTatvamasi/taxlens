@@ -42,6 +42,8 @@ export function MoneyField(props: {
   hint?: ComponentChildren;
   fromStatement?: number;
   disabled?: boolean;
+  /** Losses: allow a leading minus */
+  allowNegative?: boolean;
 }) {
   const [text, setText] = useState(props.value ? props.value.toLocaleString('en-IN') : '');
   const [focused, setFocused] = useState(false);
@@ -70,7 +72,8 @@ export function MoneyField(props: {
           onInput={(e) => {
             const v = (e.target as HTMLInputElement).value;
             setText(v);
-            props.onChange(Math.max(0, parseAmount(v)));
+            const n = parseAmount(v);
+            props.onChange(props.allowNegative ? n : Math.max(0, n));
           }}
         />
       </div>

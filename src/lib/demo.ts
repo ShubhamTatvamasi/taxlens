@@ -31,7 +31,7 @@ export function demoStatement(kind: 'individual' | 'huf'): ParsedStatement {
   let bal = 380000;
   const transactions: Transaction[] = rows.map(([date, narration, w, d], i) => {
     bal = Math.round((bal + d - w) * 100) / 100;
-    return { id: `demo-${kind}-${i}`, date, valueDate: date, narration, ref: `DEMO${String(i).padStart(10, '0')}`, withdrawal: w, deposit: d, balance: bal, balanceOk: true, source: 'demo' };
+    return { id: `demo-${kind}-${i}`, date, valueDate: date, narration, ref: `DEMO${String(i).padStart(10, '0')}`, withdrawal: w, deposit: d, balance: bal, balanceOk: true, source: `demo-${kind}.pdf` };
   });
   return {
     meta: {
